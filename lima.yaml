@@ -1,0 +1,35 @@
+# Local development environment with Lima
+
+base:
+  - template://_images/ubuntu
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      apt install make
+      curl -fsSL https://get.docker.com | sh
+      dockerd-rootless-setuptool.sh install
+  - mode: system
+    script: |
+      #!/bin/bash
+      GOARCH=$(dpkg --print-architecture)
+      GOVERSION=1.25.3
+      curl -L https://go.dev/dl/go$GOVERSION.linux-$GOARCH.tar.gz | tar -C /usr/local -xzf -
+  - mode: user
+    script: |
+      #!/bin/bash
+      echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> $HOME/.bashrc
+      echo 'export GOPATH=$HOME/go' >> $HOME/.bashrc
+      source $HOME/.bashrc
+      export PATH=$PATH:/usr/local/go/bin
+      go install golang.org/x/tools/gopls@latest
+
+mounts:
+  - location: ./
+    mountPoint: "{{.Home}}/otel-go-auto"
+    writable: true
+  - location: ~/.gitconfig
+    mountPoint: "{{.Home}}/.
+
+mountInotify: true
