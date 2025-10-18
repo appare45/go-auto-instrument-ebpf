@@ -1,4 +1,4 @@
-.PHONY: lima-up lima-down
+.PHONY: lima-up lima-down vmlinux.h
 
 LIMA_VM_NAME := otel-go-auto
 
@@ -17,3 +17,6 @@ lima-down:
 	fi
 	limactl stop $(LIMA_VM_NAME)
 	limactl delete $(LIMA_VM_NAME)
+
+vmlinux.h:
+	bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h

@@ -7,8 +7,15 @@ provision:
   - mode: system
     script: |
       #!/bin/bash
-      apt install make
+      apt update
+      apt install -y make clang libbpf-dev llvm
+  - mode: system
+    script: |
+      #!/bin/bash
       curl -fsSL https://get.docker.com | sh
+  - mode: user
+    script: |
+      #!/bin/bash
       dockerd-rootless-setuptool.sh install
   - mode: system
     script: |
@@ -29,7 +36,5 @@ mounts:
   - location: ./
     mountPoint: "{{.Home}}/otel-go-auto"
     writable: true
-  - location: ~/.gitconfig
-    mountPoint: "{{.Home}}/.
 
 mountInotify: true
