@@ -16,10 +16,12 @@ func (h *countHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.n++
+	log.Printf("count is %d\n", h.n)
 	fmt.Fprintf(w, "count is %d\n", h.n)
 }
 
 func main() {
+	log.Println("Starting server on :8080")
 	http.Handle("/count", new(countHandler))
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

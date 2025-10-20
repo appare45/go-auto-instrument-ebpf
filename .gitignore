@@ -1,2 +1,7 @@
+*
+!*.*
+!Makefile
+!*/
+
 vmlinux.h
 *.o
