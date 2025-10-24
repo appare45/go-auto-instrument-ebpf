@@ -18,6 +18,8 @@ type tracerEvent struct {
 	Pid       uint32
 	Tid       uint32
 	Goroutine uint64
+	StartTime uint64
+	EndTime   uint64
 }
 
 // loadTracer returns the embedded CollectionSpec for tracer.
@@ -62,7 +64,8 @@ type tracerSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type tracerProgramSpecs struct {
-	UprobeStartTrace *ebpf.ProgramSpec `ebpf:"uprobe_start_trace"`
+	UprobeStartTrace  *ebpf.ProgramSpec `ebpf:"uprobe_start_trace"`
+	UretprobeEndTrace *ebpf.ProgramSpec `ebpf:"uretprobe_end_trace"`
 }
 
 // tracerMapSpecs contains maps before they are loaded into the kernel.
@@ -117,12 +120,14 @@ type tracerVariables struct {
 //
 // It can be passed to loadTracerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type tracerPrograms struct {
-	UprobeStartTrace *ebpf.Program `ebpf:"uprobe_start_trace"`
+	UprobeStartTrace  *ebpf.Program `ebpf:"uprobe_start_trace"`
+	UretprobeEndTrace *ebpf.Program `ebpf:"uretprobe_end_trace"`
 }
 
 func (p *tracerPrograms) Close() error {
 	return _TracerClose(
 		p.UprobeStartTrace,
+		p.UretprobeEndTrace,
 	)
 }
 

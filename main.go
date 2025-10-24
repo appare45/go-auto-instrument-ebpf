@@ -1,16 +1,13 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
-	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/cilium/ebpf/link"
-	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
 )
 
@@ -57,44 +54,33 @@ func main() {
 	}
 	defer up.Close()
 
-	rd, err := perf.NewReader(objs.Events, os.Getpagesize())
+	uretp, err := ex.Uretprobe(symbol, objs.UretprobeEndTrace, nil)
 	if err != nil {
-		log.Fatalf("creating perf event reader: %s", err)
+		log.Fatalf("creating uretprobe: %s", err)
+		uretp.Close()
 	}
-	defer rd.Close()
 
-	go func() {
-		<-stopper
-		log.Println("Received signal, exiting program..")
-
-		if err := rd.Close(); err != nil {
-			log.Fatalf("closing perf event reader: %s", err)
-		}
-	}()
-
-	log.Printf("Listening for events..")
-
+	entries := objs.Events.Iterate()
+	var key uint64
 	var event tracerEvent
+	values := make(map[uint64]tracerEvent, 0)
 	for {
-		record, err := rd.Read()
-		if err != nil {
-			if errors.Is(err, perf.ErrClosed) {
-				return
-			}
-			log.Printf("reading from perf event reader: %s", err)
-			continue
+		select {
+		case <-stopper:
+			objs.Close()
+			log.Println("Exiting...")
+			return
+		default:
 		}
-
-		if record.LostSamples != 0 {
-			log.Printf("perf event ring buffer full, dropped %d samples", record.LostSamples)
-			continue
+		for entries.Next(&key, &event) {
+			values[key] = event
 		}
-
-		if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil {
-			log.Printf("parsing perf event: %s", err)
-			continue
+		if err := entries.Err(); err != nil {
+			fmt.Printf("Error iterating map: %v\n", err)
 		}
-
-		log.Printf("%s:%s PID: %d, TID: %d, GOROUTINE: %d", binPath, symbol, event.Pid, event.Tid, event.Goroutine)
+		for k, v := range values {
+			fmt.Printf("Goroutine: %d, PID: %d, TID: %d, Start: %d, End: %d\n",
+				k, v.Pid, v.Tid, v.StartTime, v.EndTime)
+		}
 	}
 }
