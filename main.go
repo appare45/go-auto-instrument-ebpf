@@ -1,13 +1,15 @@
 package main
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/binary"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
 )
 
@@ -59,29 +61,43 @@ func main() {
 		log.Fatalf("creating uretprobe: %s", err)
 		uretp.Close()
 	}
+	defer uretp.Close()
+
+	rd, err := perf.NewReader(objs.Events, os.Getpagesize())
+	if err != nil {
+		log.Fatalf("creating perf event reader: %s", err)
+	}
+	defer rd.Close()
+
+	rawEvents := make(chan []byte)
+
+	go func() {
+		for {
+			recode, err := rd.Read()
+			if err != nil {
+				log.Fatalf("reading from perf event reader: %s", err)
+				continue
+			}
+			if recode.LostSamples != 0 {
+				log.Printf("lost %d samples\n", recode.LostSamples)
+				continue
+			}
+			rawEvents <- recode.RawSample
+		}
+	}()
 
 	for {
-		entries := objs.Events.Iterate()
-		var key uint64
-		var event tracerEvent
-		values := make(map[uint64]tracerEvent, 0)
 		select {
 		case <-stopper:
-			objs.Close()
-			log.Println("Exiting...")
+			log.Println("Received signal, exiting...")
 			return
-		default:
-			for entries.Next(&key, &event) {
-				values[key] = event
+		case raw := <-rawEvents:
+			var event tracerEvent
+			if err := binary.Read(bytes.NewBuffer(raw), binary.LittleEndian, &event); err != nil {
+				log.Printf("parsing perf event: %s", err)
+				continue
 			}
-			if err := entries.Err(); err != nil {
-				fmt.Printf("Error iterating map: %v\n", err)
-			}
-			for k, v := range values {
-				fmt.Printf("Goroutine: %d, PID: %d, TID: %d, Start: %d, End: %d\n",
-					k, v.Pid, v.Tid, v.StartTime, v.EndTime)
-			}
-			values = make(map[uint64]tracerEvent, 0)
+			log.Printf("PID: %d, Duration: %d ns\n", event.Pid, event.EndTime-event.StartTime)
 		}
 	}
 }
