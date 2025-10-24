@@ -60,27 +60,28 @@ func main() {
 		uretp.Close()
 	}
 
-	entries := objs.Events.Iterate()
-	var key uint64
-	var event tracerEvent
-	values := make(map[uint64]tracerEvent, 0)
 	for {
+		entries := objs.Events.Iterate()
+		var key uint64
+		var event tracerEvent
+		values := make(map[uint64]tracerEvent, 0)
 		select {
 		case <-stopper:
 			objs.Close()
 			log.Println("Exiting...")
 			return
 		default:
-		}
-		for entries.Next(&key, &event) {
-			values[key] = event
-		}
-		if err := entries.Err(); err != nil {
-			fmt.Printf("Error iterating map: %v\n", err)
-		}
-		for k, v := range values {
-			fmt.Printf("Goroutine: %d, PID: %d, TID: %d, Start: %d, End: %d\n",
-				k, v.Pid, v.Tid, v.StartTime, v.EndTime)
+			for entries.Next(&key, &event) {
+				values[key] = event
+			}
+			if err := entries.Err(); err != nil {
+				fmt.Printf("Error iterating map: %v\n", err)
+			}
+			for k, v := range values {
+				fmt.Printf("Goroutine: %d, PID: %d, TID: %d, Start: %d, End: %d\n",
+					k, v.Pid, v.Tid, v.StartTime, v.EndTime)
+			}
+			values = make(map[uint64]tracerEvent, 0)
 		}
 	}
 }

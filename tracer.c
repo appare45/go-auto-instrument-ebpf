@@ -18,6 +18,11 @@ struct {
   __type(key, __u64); // goroutine ID as key
   __type(value, struct event);
   __uint(max_entries, 1024);
+} traces SEC(".maps");
+
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __type(value, struct event);
 } events SEC(".maps");
 
 #if defined(bpf_target_arm64)
@@ -39,7 +44,7 @@ int uprobe_start_trace(struct pt_regs *ctx) {
   event.goroutine = key;
   event.start_time = bpf_ktime_get_ns();
 
-  if (bpf_map_update_elem(&events, &key, &event, BPF_ANY) < 0) {
+  if (bpf_map_update_elem(&traces, &key, &event, BPF_ANY) < 0) {
     bpf_printk("bpf_map_update_elem failed\n");
   }
   return 0;
@@ -50,14 +55,20 @@ int uretprobe_end_trace(struct pt_regs *ctx) {
   struct event *event;
 
   __u64 key = goroutine_id(ctx);
-  event = bpf_map_lookup_elem(&events, &key);
+  event = bpf_map_lookup_elem(&traces, &key);
   if (event == NULL) {
     return 0;
   }
 
   event->end_time = bpf_ktime_get_ns();
 
-  if (bpf_map_update_elem(&events, &key, event, BPF_ANY) < 0) {
+  if (bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
+                        sizeof(event)) < 0) {
+    bpf_printk("bpf_map_push_elem failed\n");
+    return 0;
+  }
+
+  if (bpf_map_delete_elem(&key, &traces) < 0) {
     bpf_printk("bpf_map_update_elem failed\n");
   }
   return 0;

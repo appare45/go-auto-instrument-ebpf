@@ -73,6 +73,7 @@ type tracerProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type tracerMapSpecs struct {
 	Events *ebpf.MapSpec `ebpf:"events"`
+	Traces *ebpf.MapSpec `ebpf:"traces"`
 }
 
 // tracerVariableSpecs contains global variables before they are loaded into the kernel.
@@ -102,11 +103,13 @@ func (o *tracerObjects) Close() error {
 // It can be passed to loadTracerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type tracerMaps struct {
 	Events *ebpf.Map `ebpf:"events"`
+	Traces *ebpf.Map `ebpf:"traces"`
 }
 
 func (m *tracerMaps) Close() error {
 	return _TracerClose(
 		m.Events,
+		m.Traces,
 	)
 }
 
