@@ -8,7 +8,7 @@ provision:
     script: |
       #!/bin/bash
       apt update
-      apt install -y make clang libbpf-dev llvm
+      apt install -y make clang libbpf-dev llvm clangd
   - mode: system
     script: |
       #!/bin/bash
