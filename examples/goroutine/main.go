@@ -10,12 +10,15 @@ import (
 
 //go:noinline
 func info(i int) (pid int, tid int, pid2 int, tid2 int) {
+	start := time.Now()
 	log.Println("Info:", i)
 	pid = os.Getpid()
 	tid = syscall.Gettid()
 	time.Sleep(100 * time.Millisecond)
 	pid2 = os.Getpid()
 	tid2 = syscall.Gettid()
+	end := time.Now()
+	log.Printf("Info %d took %v\n", i, end.Sub(start))
 	return pid, tid, pid2, tid2
 }
 

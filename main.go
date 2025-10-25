@@ -2,16 +2,34 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"debug/elf"
 	"encoding/binary"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	elffunction "github.com/appare45/otel-go-auto/elffunction"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sys/unix"
 )
+
+func GetRealTimestamp(timeNanosec int64) (time.Time, error) {
+	// 現在時刻・現在のboot offsetを取得し、boot_offset時の時刻を計算する
+	var now unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &now); err != nil {
+		return time.Time{}, err
+	}
+	offset := time.Nanosecond * time.Duration(now.Nano()-timeNanosec)
+	return time.Now().Add(-1 * offset), nil
+}
 
 func main() {
 	if len(os.Args) < 3 {
@@ -20,24 +38,32 @@ func main() {
 	}
 
 	binPath := os.Args[1]
-
-	if _, err := os.Stat(binPath); os.IsNotExist(err) {
-		log.Fatalf("binary path does not exist: %s", binPath)
-		return
-	}
-
 	symbol := os.Args[2]
 	if symbol == "" {
 		log.Fatalf("symbol name is required")
 		return
 	}
 
+	fd, err := os.Open(binPath)
+	if err != nil {
+		log.Fatalf("opening binary file: %s", err)
+	}
+	defer fd.Close()
+
+	elffile, err := elf.NewFile(fd)
+	if err != nil {
+		log.Fatalf("parsing ELF file: %s", err)
+	}
+
+	funcAnalyzer, err := elffunction.NewAnalyzer(elffile)
+	symbolOffset, symbolRetOffsets, err := funcAnalyzer.Get(symbol)
+	if err != nil {
+		log.Fatalf("finding symbol %s: %s", symbol, err)
+	}
+
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatal("Removing memlock:", err)
 	}
-
-	stopper := make(chan os.Signal, 1)
-	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
 	objs := tracerObjects{}
 	if err := loadTracerObjects(&objs, nil); err != nil {
@@ -50,18 +76,15 @@ func main() {
 		log.Fatalf("opening executable: %s", err)
 	}
 
-	up, err := ex.Uprobe(symbol, objs.UprobeStartTrace, nil)
+	probes, err := probeFunc(ex, objs.UprobeStartTrace, objs.UprobeEndTrace, symbolOffset, symbolRetOffsets)
 	if err != nil {
-		log.Fatalf("creating uretprobe: %s", err)
+		log.Fatalf("setting up probes: %s", err)
 	}
-	defer up.Close()
-
-	uretp, err := ex.Uretprobe(symbol, objs.UretprobeEndTrace, nil)
-	if err != nil {
-		log.Fatalf("creating uretprobe: %s", err)
-		uretp.Close()
-	}
-	defer uretp.Close()
+	defer func() {
+		for _, p := range probes {
+			p.Close()
+		}
+	}()
 
 	rd, err := perf.NewReader(objs.Events, os.Getpagesize())
 	if err != nil {
@@ -70,7 +93,6 @@ func main() {
 	defer rd.Close()
 
 	rawEvents := make(chan []byte)
-
 	go func() {
 		for {
 			recode, err := rd.Read()
@@ -86,6 +108,14 @@ func main() {
 		}
 	}()
 
+	stopper := make(chan os.Signal, 1)
+	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+
+	ctx := context.Background()
+	stopOtel, err := initTracerProvider(ctx, binPath)
+	defer stopOtel(ctx)
+	tracer := otel.GetTracerProvider().Tracer("github.com/appare45/otel-go-auto")
+
 	for {
 		select {
 		case <-stopper:
@@ -98,6 +128,18 @@ func main() {
 				continue
 			}
 			log.Printf("PID: %d, Duration: %d ns\n", event.Pid, event.EndTime-event.StartTime)
+			starttime, err := GetRealTimestamp(int64(event.StartTime))
+			if err != nil {
+				log.Printf("getting real timestamp: %s", err)
+				continue
+			}
+			endTime, err := GetRealTimestamp(int64(event.EndTime))
+			if err != nil {
+				log.Printf("getting real timestamp: %s", err)
+				continue
+			}
+			_, span := tracer.Start(context.TODO(), fmt.Sprintf("uprobe: %s", symbol), trace.WithTimestamp(starttime))
+			span.End(trace.WithTimestamp(endTime))
 		}
 	}
 }
