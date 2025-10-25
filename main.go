@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"debug/elf"
 	"encoding/binary"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	elffunction "github.com/appare45/otel-go-auto/elffunction"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
@@ -20,16 +22,28 @@ func main() {
 	}
 
 	binPath := os.Args[1]
-
-	if _, err := os.Stat(binPath); os.IsNotExist(err) {
-		log.Fatalf("binary path does not exist: %s", binPath)
-		return
+	fd, err := os.Open(binPath)
+	if err != nil {
+		log.Fatalf("opening binary file: %s", err)
 	}
+	defer fd.Close()
+
+	elffile, err := elf.NewFile(fd)
+	if err != nil {
+		log.Fatalf("parsing ELF file: %s", err)
+	}
+
+	funcAnalyzer, err := elffunction.NewAnalyzer(elffile)
 
 	symbol := os.Args[2]
 	if symbol == "" {
 		log.Fatalf("symbol name is required")
 		return
+	}
+
+	symbolOffset, symbolRetOffsets, err := funcAnalyzer.Get(symbol)
+	if err != nil {
+		log.Fatalf("finding symbol %s: %s", symbol, err)
 	}
 
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -50,18 +64,20 @@ func main() {
 		log.Fatalf("opening executable: %s", err)
 	}
 
-	up, err := ex.Uprobe(symbol, objs.UprobeStartTrace, nil)
+	up, err := ex.Uprobe(symbol, objs.UprobeStartTrace, &link.UprobeOptions{Address: symbolOffset})
 	if err != nil {
 		log.Fatalf("creating uretprobe: %s", err)
 	}
 	defer up.Close()
 
-	uretp, err := ex.Uretprobe(symbol, objs.UretprobeEndTrace, nil)
-	if err != nil {
-		log.Fatalf("creating uretprobe: %s", err)
-		uretp.Close()
+	for _, retOffset := range symbolRetOffsets {
+		uretp, err := ex.Uprobe(symbol, objs.UprobeEndTrace, &link.UprobeOptions{Address: retOffset})
+		if err != nil {
+			log.Fatalf("creating uretprobe: %s", err)
+			uretp.Close()
+		}
+		defer uretp.Close()
 	}
-	defer uretp.Close()
 
 	rd, err := perf.NewReader(objs.Events, os.Getpagesize())
 	if err != nil {

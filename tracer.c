@@ -49,8 +49,8 @@ int uprobe_start_trace(struct pt_regs *ctx) {
   return 0;
 }
 
-SEC("uretprobe/end_trace")
-int uretprobe_end_trace(struct pt_regs *ctx) {
+SEC("uprobe/end_trace")
+int uprobe_end_trace(struct pt_regs *ctx) {
   struct event *event;
 
   __u64 key = goroutine_id(ctx);

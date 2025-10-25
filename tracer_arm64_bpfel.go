@@ -64,8 +64,8 @@ type tracerSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type tracerProgramSpecs struct {
-	UprobeStartTrace  *ebpf.ProgramSpec `ebpf:"uprobe_start_trace"`
-	UretprobeEndTrace *ebpf.ProgramSpec `ebpf:"uretprobe_end_trace"`
+	UprobeEndTrace   *ebpf.ProgramSpec `ebpf:"uprobe_end_trace"`
+	UprobeStartTrace *ebpf.ProgramSpec `ebpf:"uprobe_start_trace"`
 }
 
 // tracerMapSpecs contains maps before they are loaded into the kernel.
@@ -123,14 +123,14 @@ type tracerVariables struct {
 //
 // It can be passed to loadTracerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type tracerPrograms struct {
-	UprobeStartTrace  *ebpf.Program `ebpf:"uprobe_start_trace"`
-	UretprobeEndTrace *ebpf.Program `ebpf:"uretprobe_end_trace"`
+	UprobeEndTrace   *ebpf.Program `ebpf:"uprobe_end_trace"`
+	UprobeStartTrace *ebpf.Program `ebpf:"uprobe_start_trace"`
 }
 
 func (p *tracerPrograms) Close() error {
 	return _TracerClose(
+		p.UprobeEndTrace,
 		p.UprobeStartTrace,
-		p.UretprobeEndTrace,
 	)
 }
 
