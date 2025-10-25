@@ -64,20 +64,16 @@ func main() {
 		log.Fatalf("opening executable: %s", err)
 	}
 
-	up, err := ex.Uprobe(symbol, objs.UprobeStartTrace, &link.UprobeOptions{Address: symbolOffset})
+	probes, err := probeFunc(ex, objs.UprobeStartTrace, objs.UprobeEndTrace, symbolOffset, symbolRetOffsets)
 	if err != nil {
-		log.Fatalf("creating uretprobe: %s", err)
+		log.Fatalf("setting up probes: %s", err)
 	}
-	defer up.Close()
 
-	for _, retOffset := range symbolRetOffsets {
-		uretp, err := ex.Uprobe(symbol, objs.UprobeEndTrace, &link.UprobeOptions{Address: retOffset})
-		if err != nil {
-			log.Fatalf("creating uretprobe: %s", err)
-			uretp.Close()
+	defer func() {
+		for _, p := range probes {
+			p.Close()
 		}
-		defer uretp.Close()
-	}
+	}()
 
 	rd, err := perf.NewReader(objs.Events, os.Getpagesize())
 	if err != nil {
