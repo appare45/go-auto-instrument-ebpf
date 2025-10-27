@@ -1,3 +1,3 @@
-module github.com/appare45/otel-go-auto/examples/demo
+module github.com/appare45/go-auto-instrument-ebpf/examples/demo
 
 go 1.25.3

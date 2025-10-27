@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	elffunction "github.com/appare45/otel-go-auto/elffunction"
+	elffunction "github.com/appare45/go-auto-instrument-ebpf/elffunction"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
@@ -114,7 +114,7 @@ func main() {
 	ctx := context.Background()
 	stopOtel, err := initTracerProvider(ctx, binPath)
 	defer stopOtel(ctx)
-	tracer := otel.GetTracerProvider().Tracer("github.com/appare45/otel-go-auto")
+	tracer := otel.GetTracerProvider().Tracer("github.com/appare45/go-auto-instrument-ebpf")
 
 	for {
 		select {

@@ -1,4 +1,4 @@
-module github.com/appare45/otel-go-auto
+module github.com/appare45/go-auto-instrument-ebpf
 
 go 1.25.3
 

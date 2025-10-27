@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	elffunction "github.com/appare45/otel-go-auto/elffunction"
+	elffunction "github.com/appare45/go-auto-instrument-ebpf/elffunction"
 )
 
 func main() {
