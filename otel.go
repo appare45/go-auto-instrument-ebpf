@@ -14,6 +14,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
+const otelSdkName = "my-otel-ebpf-app"
+
 func initTracerProvider(ctx context.Context, serviceName string) (func(context.Context) error, error) {
 	apikey := os.Getenv("MACKEREL_API_KEY")
 	if apikey == "" {
@@ -43,7 +45,7 @@ func initTracerProvider(ctx context.Context, serviceName string) (func(context.C
 		resource.WithHost(),
 		resource.WithAttributes(
 			semconv.ServiceName(serviceName),
-			semconv.TelemetrySDKName("my-otel-ebpf-app"),
+			semconv.TelemetrySDKName(otelSdkName),
 		),
 	)
 	if err != nil {

@@ -4,6 +4,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <linux/bpf.h>
+#include <string.h>
 
 struct event {
   __u32 pid;
@@ -11,6 +12,7 @@ struct event {
   __u64 goroutine;
   __u64 start_time;
   __u64 end_time;
+  __u64 param1;
 };
 
 struct {
@@ -35,13 +37,15 @@ struct {
 
 SEC("uprobe/start_trace")
 int uprobe_start_trace(struct pt_regs *ctx) {
-  struct event event = {};
+  struct event event;
+  memset(&event, 0, sizeof(event));
   __u64 key = goroutine_id(ctx);
 
   event.tid = bpf_get_current_pid_tgid();
   event.pid = bpf_get_current_pid_tgid() >> 32;
   event.goroutine = key;
   event.start_time = bpf_ktime_get_ns();
+  event.param1 = PT_REGS_PARM1(ctx);
 
   if (bpf_map_update_elem(&traces, &key, &event, BPF_ANY) < 0) {
     bpf_printk("bpf_map_update_elem failed\n");

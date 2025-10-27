@@ -127,7 +127,6 @@ func main() {
 				log.Printf("parsing perf event: %s", err)
 				continue
 			}
-			log.Printf("PID: %d, Duration: %d ns\n", event.Pid, event.EndTime-event.StartTime)
 			starttime, err := GetRealTimestamp(int64(event.StartTime))
 			if err != nil {
 				log.Printf("getting real timestamp: %s", err)
@@ -138,6 +137,9 @@ func main() {
 				log.Printf("getting real timestamp: %s", err)
 				continue
 			}
+
+			log.Printf("Function %s executed with param %d Duration: %d ms\n", symbol, event.Param1, endTime.Sub(starttime).Milliseconds())
+
 			_, span := tracer.Start(context.TODO(), fmt.Sprintf("uprobe: %s", symbol), trace.WithTimestamp(starttime))
 			span.End(trace.WithTimestamp(endTime))
 		}

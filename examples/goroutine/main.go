@@ -35,7 +35,7 @@ func main() {
 	ptmapLock := sync.Mutex{}
 	ptmap := make(map[int]ptmapEntry)
 
-	count := 2
+	count := 100
 
 	for i := range count {
 		wg.Go(func() {

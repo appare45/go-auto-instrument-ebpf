@@ -20,6 +20,7 @@ type tracerEvent struct {
 	Goroutine uint64
 	StartTime uint64
 	EndTime   uint64
+	Param1    uint64
 }
 
 // loadTracer returns the embedded CollectionSpec for tracer.
