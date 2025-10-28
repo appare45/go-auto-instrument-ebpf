@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	elffunction "github.com/appare45/go-auto-instrument-ebpf/elffunction"
 	"github.com/cilium/ebpf/link"
@@ -18,18 +17,11 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sys/unix"
 )
 
-func GetRealTimestamp(timeNanosec int64) (time.Time, error) {
-	// 現在時刻・現在のboot offsetを取得し、boot_offset時の時刻を計算する
-	var now unix.Timespec
-	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &now); err != nil {
-		return time.Time{}, err
-	}
-	offset := time.Nanosecond * time.Duration(now.Nano()-timeNanosec)
-	return time.Now().Add(-1 * offset), nil
-}
+const (
+	tracerName = "github.com/appare45/go-auto-instrument-ebpf"
+)
 
 func main() {
 	if len(os.Args) < 3 {
@@ -114,7 +106,7 @@ func main() {
 	ctx := context.Background()
 	stopOtel, err := initTracerProvider(ctx, binPath)
 	defer stopOtel(ctx)
-	tracer := otel.GetTracerProvider().Tracer("github.com/appare45/go-auto-instrument-ebpf")
+	tracer := otel.GetTracerProvider().Tracer(tracerName)
 
 	for {
 		select {
@@ -138,7 +130,16 @@ func main() {
 				continue
 			}
 
-			log.Printf("Function %s executed with param %d Duration: %d ms\n", symbol, event.Param1, endTime.Sub(starttime).Milliseconds())
+			// Convert event.Host ([256]int8) to string for printing
+			hostStr := ""
+			for _, c := range event.Host {
+				if c == 0 {
+					break
+				}
+				hostStr += string(byte(c))
+			}
+
+			log.Printf("Function %s executed Protocol: %d.%d Host %s Duration: %d ms\n", symbol, event.ProtoMajor, event.ProtoMinor, hostStr, endTime.Sub(starttime).Milliseconds())
 
 			_, span := tracer.Start(context.TODO(), fmt.Sprintf("uprobe: %s", symbol), trace.WithTimestamp(starttime))
 			span.End(trace.WithTimestamp(endTime))

@@ -14,13 +14,15 @@ import (
 )
 
 type tracerEvent struct {
-	_         structs.HostLayout
-	Pid       uint32
-	Tid       uint32
-	Goroutine uint64
-	StartTime uint64
-	EndTime   uint64
-	Param1    uint64
+	_          structs.HostLayout
+	Pid        uint32
+	Tid        uint32
+	Goroutine  uint64
+	StartTime  uint64
+	EndTime    uint64
+	ProtoMajor uint64
+	ProtoMinor uint64
+	Host       [256]int8
 }
 
 // loadTracer returns the embedded CollectionSpec for tracer.
