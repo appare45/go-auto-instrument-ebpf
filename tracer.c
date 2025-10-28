@@ -12,7 +12,9 @@ struct event {
   __u64 goroutine;
   __u64 start_time;
   __u64 end_time;
-  __u64 param1;
+  __u64 protoMajor;
+  __u64 protoMinor;
+  char host[256];
 };
 
 struct {
@@ -35,17 +37,39 @@ struct {
 #define goroutine_id(ctx) (__PT_REGS_CAST(ctx)->regs[14])
 #endif
 
+typedef struct go_str {
+  char *str;
+  unsigned int len;
+} go_str_t;
+
 SEC("uprobe/start_trace")
 int uprobe_start_trace(struct pt_regs *ctx) {
-  struct event event;
-  memset(&event, 0, sizeof(event));
+  bpf_printk("uprobe_start_trace called\n");
+  struct event event = {0};
   __u64 key = goroutine_id(ctx);
 
   event.tid = bpf_get_current_pid_tgid();
   event.pid = bpf_get_current_pid_tgid() >> 32;
   event.goroutine = key;
   event.start_time = bpf_ktime_get_ns();
-  event.param1 = PT_REGS_PARM1(ctx);
+  void *req = (void *)PT_REGS_PARM4(ctx);
+  int protoMajor = 100;
+  int protoMinor = 100;
+  bpf_probe_read(&protoMajor, sizeof(protoMajor), req + 0x28);
+  bpf_probe_read(&protoMinor, sizeof(protoMinor), req + 0x30);
+  struct go_str host = {0};
+  bpf_probe_read(&host, sizeof(host), req + 0x80);
+  event.host[0] = '\0';
+  int len = 0;
+  if (host.len > sizeof(event.host) - 1) {
+    len = sizeof(event.host) - 1;
+  } else {
+    len = host.len;
+  }
+
+  bpf_probe_read_user(&event.host, len, host.str);
+  event.protoMajor = protoMajor;
+  event.protoMinor = protoMinor;
 
   if (bpf_map_update_elem(&traces, &key, &event, BPF_ANY) < 0) {
     bpf_printk("bpf_map_update_elem failed\n");
@@ -55,6 +79,7 @@ int uprobe_start_trace(struct pt_regs *ctx) {
 
 SEC("uprobe/end_trace")
 int uprobe_end_trace(struct pt_regs *ctx) {
+  bpf_printk("uprobe_end_trace called\n");
   struct event *event;
 
   __u64 key = goroutine_id(ctx);
@@ -66,7 +91,7 @@ int uprobe_end_trace(struct pt_regs *ctx) {
   event->end_time = bpf_ktime_get_ns();
 
   if (bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(*event)) < 0) {
+                            sizeof(*event)) < 0) {
     bpf_printk("bpf_map_push_elem failed\n");
     return 0;
   }
