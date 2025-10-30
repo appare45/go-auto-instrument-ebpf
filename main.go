@@ -16,6 +16,8 @@ import (
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -103,8 +105,13 @@ func main() {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
+	serviceName := os.Getenv("OTEL_SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "ebpf-auto-instrumentation" + binPath
+	}
+
 	ctx := context.Background()
-	stopOtel, err := initTracerProvider(ctx, binPath)
+	stopOtel, err := initTracerProvider(ctx, serviceName)
 	defer stopOtel(ctx)
 	tracer := otel.GetTracerProvider().Tracer(tracerName)
 
@@ -139,9 +146,34 @@ func main() {
 				hostStr += string(byte(c))
 			}
 
-			log.Printf("Function %s executed Protocol: %d.%d Host %s Duration: %d ms\n", symbol, event.ProtoMajor, event.ProtoMinor, hostStr, endTime.Sub(starttime).Milliseconds())
+			pathStr := ""
+			for _, c := range event.Path {
+				if c == 0 {
+					break
+				}
+				pathStr += string(byte(c))
+			}
 
-			_, span := tracer.Start(context.TODO(), fmt.Sprintf("uprobe: %s", symbol), trace.WithTimestamp(starttime))
+			methodStr := ""
+			for _, c := range event.Method {
+				if c == 0 {
+					break
+				}
+				methodStr += string(byte(c))
+			}
+
+			log.Printf("Function %s executed Protocol: %d.%d Host %s Path %s Method %s Duration: %d ms Status: %d\n", symbol, event.ProtoMajor, event.ProtoMinor, hostStr, pathStr, methodStr, endTime.Sub(starttime).Milliseconds(), event.StatusCode)
+
+			_, span := tracer.Start(context.TODO(), fmt.Sprintf("%s: %s", methodStr, pathStr),
+				trace.WithTimestamp(starttime),
+				trace.WithAttributes(
+					semconv.HTTPRoute(pathStr),
+					semconv.HostName(hostStr),
+					semconv.HTTPResponseStatusCode(int(event.StatusCode)),
+					// attribute.KeyValue{Key: semconv.HTTPRequestMethodKey, Value: methodStr},
+					attribute.String(string(semconv.HTTPRequestMethodKey), methodStr),
+				),
+			)
 			span.End(trace.WithTimestamp(endTime))
 		}
 	}

@@ -14,7 +14,11 @@ struct event {
   __u64 end_time;
   __u64 protoMajor;
   __u64 protoMinor;
-  char host[256];
+  __u64 resp_ptr;
+  __u64 status_code;
+  char host[128];
+  char path[128];
+  char method[16];
 };
 
 struct {
@@ -42,6 +46,20 @@ typedef struct go_str {
   unsigned int len;
 } go_str_t;
 
+// net/http.Request
+// URL                  offset: 0x10, type: *url.URL                       size: 8
+// net/url.URL
+// Path                 offset: 0x38, type: string                         size: 16
+const int net_http_Request_URL_offset = 0x10;
+const int net_url_URL_Path_offset = 0x38;
+// Method               offset: 0x0, type: string                         size: 16
+const int net_http_Request_Method_offset = 0x0;
+const int net_http_Request_Host_offset = 0x80;
+const int net_http_Request_Proto_offset = 0x28;
+const int net_http_Request_ProtoMinor_offset = 0x30;
+const int net_http_Response_StatusCode_offset = 120;
+
+
 SEC("uprobe/start_trace")
 int uprobe_start_trace(struct pt_regs *ctx) {
   bpf_printk("uprobe_start_trace called\n");
@@ -53,12 +71,15 @@ int uprobe_start_trace(struct pt_regs *ctx) {
   event.goroutine = key;
   event.start_time = bpf_ktime_get_ns();
   void *req = (void *)PT_REGS_PARM4(ctx);
+  event.resp_ptr = (__u64)PT_REGS_PARM3(ctx);
+
   int protoMajor = 100;
   int protoMinor = 100;
-  bpf_probe_read(&protoMajor, sizeof(protoMajor), req + 0x28);
-  bpf_probe_read(&protoMinor, sizeof(protoMinor), req + 0x30);
+  bpf_probe_read(&protoMajor, sizeof(protoMajor), req + net_http_Request_Proto_offset);
+  bpf_probe_read(&protoMinor, sizeof(protoMinor), req + net_http_Request_ProtoMinor_offset);
+
   struct go_str host = {0};
-  bpf_probe_read(&host, sizeof(host), req + 0x80);
+  bpf_probe_read(&host, sizeof(host), req + net_http_Request_Host_offset);
   event.host[0] = '\0';
   int len = 0;
   if (host.len > sizeof(event.host) - 1) {
@@ -66,8 +87,32 @@ int uprobe_start_trace(struct pt_regs *ctx) {
   } else {
     len = host.len;
   }
-
   bpf_probe_read_user(&event.host, len, host.str);
+
+  void *url = NULL;
+  bpf_probe_read(&url, sizeof(url), req + net_http_Request_URL_offset);
+  struct go_str path = {0};
+  bpf_probe_read(&path, sizeof(path), url + net_url_URL_Path_offset);
+  event.path[0] = '\0';
+  len = 0;
+  if (path.len > sizeof(event.path) - 1) {
+    len = sizeof(event.path) - 1;
+  } else {
+    len = path.len;
+  }
+  bpf_probe_read_user(&event.path, len, path.str);
+
+  struct go_str method = {0};
+  bpf_probe_read(&method, sizeof(method), req + net_http_Request_Method_offset);
+  event.method[0] = '\0';
+  len = 0;
+  if (method.len > sizeof(event.method) - 1) {
+    len = sizeof(event.method) - 1;
+  } else {
+    len = method.len;
+  }
+  bpf_probe_read_user(&event.method, len, method.str);
+
   event.protoMajor = protoMajor;
   event.protoMinor = protoMinor;
 
@@ -87,6 +132,11 @@ int uprobe_end_trace(struct pt_regs *ctx) {
   if (event == NULL) {
     return 0;
   }
+
+  void *resp = (void *)event->resp_ptr;
+  __u64 status_code = 0;
+  bpf_probe_read(&status_code, sizeof(status_code), resp + net_http_Response_StatusCode_offset);
+  event->status_code = status_code;
 
   event->end_time = bpf_ktime_get_ns();
 

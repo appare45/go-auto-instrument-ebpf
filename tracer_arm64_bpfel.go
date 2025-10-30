@@ -22,7 +22,11 @@ type tracerEvent struct {
 	EndTime    uint64
 	ProtoMajor uint64
 	ProtoMinor uint64
-	Host       [256]int8
+	RespPtr    uint64
+	StatusCode uint64
+	Host       [128]int8
+	Path       [128]int8
+	Method     [16]int8
 }
 
 // loadTracer returns the embedded CollectionSpec for tracer.
@@ -83,6 +87,13 @@ type tracerMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type tracerVariableSpecs struct {
+	NetHttpRequestHostOffset        *ebpf.VariableSpec `ebpf:"net_http_Request_Host_offset"`
+	NetHttpRequestMethodOffset      *ebpf.VariableSpec `ebpf:"net_http_Request_Method_offset"`
+	NetHttpRequestProtoMinorOffset  *ebpf.VariableSpec `ebpf:"net_http_Request_ProtoMinor_offset"`
+	NetHttpRequestProtoOffset       *ebpf.VariableSpec `ebpf:"net_http_Request_Proto_offset"`
+	NetHttpRequestURL_offset        *ebpf.VariableSpec `ebpf:"net_http_Request_URL_offset"`
+	NetHttpResponseStatusCodeOffset *ebpf.VariableSpec `ebpf:"net_http_Response_StatusCode_offset"`
+	NetUrlURL_PathOffset            *ebpf.VariableSpec `ebpf:"net_url_URL_Path_offset"`
 }
 
 // tracerObjects contains all objects after they have been loaded into the kernel.
@@ -120,6 +131,13 @@ func (m *tracerMaps) Close() error {
 //
 // It can be passed to loadTracerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type tracerVariables struct {
+	NetHttpRequestHostOffset        *ebpf.Variable `ebpf:"net_http_Request_Host_offset"`
+	NetHttpRequestMethodOffset      *ebpf.Variable `ebpf:"net_http_Request_Method_offset"`
+	NetHttpRequestProtoMinorOffset  *ebpf.Variable `ebpf:"net_http_Request_ProtoMinor_offset"`
+	NetHttpRequestProtoOffset       *ebpf.Variable `ebpf:"net_http_Request_Proto_offset"`
+	NetHttpRequestURL_offset        *ebpf.Variable `ebpf:"net_http_Request_URL_offset"`
+	NetHttpResponseStatusCodeOffset *ebpf.Variable `ebpf:"net_http_Response_StatusCode_offset"`
+	NetUrlURL_PathOffset            *ebpf.Variable `ebpf:"net_url_URL_Path_offset"`
 }
 
 // tracerPrograms contains all programs after they have been loaded into the kernel.
