@@ -118,9 +118,7 @@ int uprobe_end_trace(struct pt_regs *ctx) {
   }
 
   void *resp = (void *)event->resp_ptr;
-  __u64 status_code = 0;
-  bpf_probe_read(&status_code, sizeof(status_code), resp + net_http_Response_StatusCode_offset);
-  event->status_code = status_code;
+  bpf_probe_read(&event->status_code, sizeof(event->status_code), resp + net_http_Response_StatusCode_offset);
 
   event->end_time = bpf_ktime_get_ns();
 
