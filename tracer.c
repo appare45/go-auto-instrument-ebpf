@@ -46,6 +46,17 @@ typedef struct go_str {
   unsigned int len;
 } go_str_t;
 
+#define COPY_GO_STR(dst, go_str_var, src_ptr)                           \
+  do {                                                                  \
+    struct go_str go_str_var = {0};                                     \
+    bpf_probe_read(&go_str_var, sizeof(go_str_var), src_ptr);           \
+    (dst)[0] = '\0';                                                    \
+    int _len = (go_str_var.len > sizeof(dst) - 1)                       \
+      ? (sizeof(dst) - 1)                                               \
+      : go_str_var.len;                                                 \
+    bpf_probe_read_user(&(dst), _len, go_str_var.str);                  \
+  } while (0)
+
 // net/http.Request
 // URL                  offset: 0x10, type: *url.URL                       size: 8
 // net/url.URL
@@ -78,40 +89,13 @@ int uprobe_start_trace(struct pt_regs *ctx) {
   bpf_probe_read(&protoMajor, sizeof(protoMajor), req + net_http_Request_Proto_offset);
   bpf_probe_read(&protoMinor, sizeof(protoMinor), req + net_http_Request_ProtoMinor_offset);
 
-  struct go_str host = {0};
-  bpf_probe_read(&host, sizeof(host), req + net_http_Request_Host_offset);
-  event.host[0] = '\0';
-  int len = 0;
-  if (host.len > sizeof(event.host) - 1) {
-    len = sizeof(event.host) - 1;
-  } else {
-    len = host.len;
-  }
-  bpf_probe_read_user(&event.host, len, host.str);
+  COPY_GO_STR(event.host, host, req + net_http_Request_Host_offset);
 
   void *url = NULL;
   bpf_probe_read(&url, sizeof(url), req + net_http_Request_URL_offset);
-  struct go_str path = {0};
-  bpf_probe_read(&path, sizeof(path), url + net_url_URL_Path_offset);
-  event.path[0] = '\0';
-  len = 0;
-  if (path.len > sizeof(event.path) - 1) {
-    len = sizeof(event.path) - 1;
-  } else {
-    len = path.len;
-  }
-  bpf_probe_read_user(&event.path, len, path.str);
+  COPY_GO_STR(event.path, path, url + net_url_URL_Path_offset);
 
-  struct go_str method = {0};
-  bpf_probe_read(&method, sizeof(method), req + net_http_Request_Method_offset);
-  event.method[0] = '\0';
-  len = 0;
-  if (method.len > sizeof(event.method) - 1) {
-    len = sizeof(event.method) - 1;
-  } else {
-    len = method.len;
-  }
-  bpf_probe_read_user(&event.method, len, method.str);
+  COPY_GO_STR(event.method, method, req + net_http_Request_Method_offset);
 
   event.protoMajor = protoMajor;
   event.protoMinor = protoMinor;
