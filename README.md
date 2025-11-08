@@ -14,5 +14,8 @@ limactl start go-auto-instrument-ebpf
 go generate
 go build
 sudo ./go-auto-instrument-ebpf <対象のバイナリ>
+2025/11/07 18:14:42 Function net/http.serverHandler.ServeHTTP executed Protocol: 1.1 Host localhost:8080 Duration: 104 ms
+2025/11/07 18:14:42 Function net/http.serverHandler.ServeHTTP executed Protocol: 1.1 Host localhost:8080 Duration: 102 ms
+2025/11/07 18:14:43 Function net/http.serverHandler.ServeHTTP executed Protocol: 1.1 Host localhost:8080 Duration: 102 ms
 ```
 
