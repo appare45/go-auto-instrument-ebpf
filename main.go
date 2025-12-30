@@ -65,6 +65,18 @@ func main() {
 	}
 	defer objs.Close()
 
+	if err = objs.NetHttpRequestHostOffset.Set(uint32(0x10)); err != nil {
+		log.Fatalf("setting host offset: %s", err)
+	}
+
+	if err = objs.NetHttpRequestMethodOffset.Set(uint32(0x0)); err != nil {
+		log.Fatalf("setting method offset: %s", err)
+	
+
+	if err = objs.NetHttpRequestPathOffset.Set(uint32(0x18)); err != nil {
+		log.Fatalf("setting path offset: %s", err)
+	}
+
 	ex, err := link.OpenExecutable(binPath)
 	if err != nil {
 		log.Fatalf("opening executable: %s", err)

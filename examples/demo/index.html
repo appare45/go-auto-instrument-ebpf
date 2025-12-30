@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo App - Item Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status.ok {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .item-list {
+            list-style: none;
+        }
+
+        .item {
+            background-color: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-id {
+            font-weight: 600;
+            color: #007bff;
+            margin-right: 10px;
+        }
+
+        .item-value {
+            flex: 1;
+            color: #333;
+        }
+
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .search-result {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Item Manager</h1>
+
+        <div class="card">
+            <h2>ヘルスチェック</h2>
+            <button onclick="checkHealth()">ステータス確認</button>
+            <div id="healthStatus"></div>
+        </div>
+
+        <div class="card">
+            <h2>アイテム作成</h2>
+            <form id="createForm" onsubmit="createItem(event)">
+                <div class="form-group">
+                    <label for="itemValue">アイテムの値</label>
+                    <input type="text" id="itemValue" placeholder="例: test item" required>
+                </div>
+                <button type="submit">作成</button>
+            </form>
+            <div id="createMessage"></div>
+        </div>
+
+        <div class="card">
+            <h2>ID指定検索</h2>
+            <form id="searchForm" onsubmit="searchItem(event)">
+                <div class="form-group">
+                    <label for="searchId">アイテムID</label>
+                    <input type="number" id="searchId" placeholder="例: 1" min="1" required>
+                </div>
+                <button type="submit">検索</button>
+            </form>
+            <div id="searchResult"></div>
+        </div>
+
+        <div class="card">
+            <h2>全アイテム一覧</h2>
+            <button onclick="loadAllItems()">更新</button>
+            <div id="itemsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+
+        async function checkHealth() {
+            const statusDiv = document.getElementById('healthStatus');
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    statusDiv.innerHTML = '<div class="message success">サーバーは正常に動作しています</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="message error">サーバーに問題があります</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="message error">サーバーに接続できません: ' + error.message + '</div>';
+            }
+        }
+
+        async function createItem(event) {
+            event.preventDefault();
+            const messageDiv = document.getElementById('createMessage');
+            const valueInput = document.getElementById('itemValue');
+            const value = valueInput.value.trim();
+
+            if (!value) {
+                messageDiv.innerHTML = '<div class="message error">値を入力してください</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/items`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ value: value })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    messageDiv.innerHTML = `<div class="message success">アイテムを作成しました (ID: ${data.id})</div>`;
+                    valueInput.value = '';
+                    loadAllItems();
+                } else {
+                    messageDiv.innerHTML = `<div class="message error">エラー: ${data.error}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="message error">作成に失敗しました: ' + error.message + '</div>';
+            }
+        }
+
+        async function searchItem(event) {
+            event.preventDefault();
+            const resultDiv = document.getElementById('searchResult');
+            const idInput = document.getElementById('searchId');
+            const id = idInput.value;
+
+            try {
+                const response = await fetch(`${API_BASE}/items/${id}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="message success">
+                            <div class="item search-result">
+                                <span class="item-id">ID: ${data.id}</span>
+                                <span class="item-value">${data.value}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="message error">${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="message error">検索に失敗しました: ' + error.message + '</div>';
+            }
+        }
+
+        async function loadAllItems() {
+            const listDiv = document.getElementById('itemsList');
+            listDiv.innerHTML = '<div class="empty-state">読み込み中...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/items`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.length === 0) {
+                        listDiv.innerHTML = '<div class="empty-state">アイテムがありません</div>';
+                    } else {
+                        const itemsHTML = data.map(item => `
+                            <li class="item">
+                                <span class="item-id">ID: ${item.id}</span>
+                                <span class="item-value">${item.value}</span>
+                            </li>
+                        `).join('');
+                        listDiv.innerHTML = `<ul class="item-list">${itemsHTML}</ul>`;
+                    }
+                } else {
+                    listDiv.innerHTML = '<div class="message error">読み込みに失敗しました</div>';
+                }
+            } catch (error) {
+                listDiv.innerHTML = '<div class="message error">読み込みに失敗しました: ' + error.message + '</div>';
+            }
+        }
+
+        window.onload = function() {
+            checkHealth();
+            loadAllItems();
+        };
+    </script>
+</body>
+</html>
