@@ -65,16 +65,32 @@ func main() {
 	}
 	defer objs.Close()
 
-	if err = objs.NetHttpRequestHostOffset.Set(uint32(0x10)); err != nil {
-		log.Fatalf("setting host offset: %s", err)
+	if err = objs.NetHttpRequestURL_offset.Set(uint32(0x10)); err != nil {
+		log.Fatalf("setting url offset: %s", err)
+	}
+
+	if err = objs.NetUrlURL_PathOffset.Set(uint32(0x38)); err != nil {
+		log.Fatalf("setting path offset: %s", err)
 	}
 
 	if err = objs.NetHttpRequestMethodOffset.Set(uint32(0x0)); err != nil {
 		log.Fatalf("setting method offset: %s", err)
-	
+	}
 
-	if err = objs.NetHttpRequestPathOffset.Set(uint32(0x18)); err != nil {
-		log.Fatalf("setting path offset: %s", err)
+	if err = objs.NetHttpRequestHostOffset.Set(uint32(0x80)); err != nil {
+		log.Fatalf("setting host offset: %s", err)
+	}
+
+	if err = objs.NetHttpRequestProtoOffset.Set(uint32(0x30)); err != nil {
+		log.Fatalf("setting proto minor offset: %s", err)
+	}
+
+	if err = objs.NetHttpRequestProtoMinorOffset.Set(uint32(0x30)); err != nil {
+		log.Fatalf("setting proto minor offset: %s", err)
+	}
+
+	if err = objs.NetHttpResponseStatusCodeOffset.Set(uint32(0x120)); err != nil {
+		log.Fatalf("setting status code offset: %s", err)
 	}
 
 	ex, err := link.OpenExecutable(binPath)
@@ -138,6 +154,7 @@ func main() {
 				log.Printf("parsing perf event: %s", err)
 				continue
 			}
+			fmt.Printf("%+v\n", event)
 			starttime, err := GetRealTimestamp(int64(event.StartTime))
 			if err != nil {
 				log.Printf("getting real timestamp: %s", err)
@@ -182,7 +199,6 @@ func main() {
 					semconv.HTTPRoute(pathStr),
 					semconv.HostName(hostStr),
 					semconv.HTTPResponseStatusCode(int(event.StatusCode)),
-					// attribute.KeyValue{Key: semconv.HTTPRequestMethodKey, Value: methodStr},
 					attribute.String(string(semconv.HTTPRequestMethodKey), methodStr),
 				),
 			)

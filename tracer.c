@@ -61,14 +61,14 @@ typedef struct go_str {
 // URL                  offset: 0x10, type: *url.URL                       size: 8
 // net/url.URL
 // Path                 offset: 0x38, type: string                         size: 16
-const int net_http_Request_URL_offset = 0x10;
-const int net_url_URL_Path_offset = 0x38;
+volatile __u32 net_http_Request_URL_offset;
+volatile __u32 net_url_URL_Path_offset;
 // Method               offset: 0x0, type: string                         size: 16
-const int net_http_Request_Method_offset = 0x0;
-const int net_http_Request_Host_offset = 0x80;
-const int net_http_Request_Proto_offset = 0x28;
-const int net_http_Request_ProtoMinor_offset = 0x30;
-const int net_http_Response_StatusCode_offset = 120;
+volatile __u32 net_http_Request_Method_offset;
+volatile __u32 net_http_Request_Host_offset;
+volatile __u32 net_http_Request_Proto_offset;
+volatile __u32 net_http_Request_ProtoMinor_offset;
+volatile __u32 net_http_Response_StatusCode_offset;
 
 
 SEC("uprobe/start_trace")
