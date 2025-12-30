@@ -1,0 +1,14 @@
+{
+	"name": "Go",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"capAdd": [
+		"CAP_SYS_ADMIN"
+	],
+	"features": {
+		"ghcr.io/devcontainers/features/go:1": {},
+		"ghcr.io/thediveo/devcontainer-features/go-ebpf:0": {}
+	},
+	"postCreateCommand": "go version"
+}

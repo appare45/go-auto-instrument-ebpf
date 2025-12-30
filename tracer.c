@@ -1,4 +1,4 @@
-// go:build ignore
+//go:build ignore
 
 #include <asm/ptrace.h>
 #include <bpf/bpf_helpers.h>

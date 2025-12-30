@@ -20,3 +20,6 @@ lima-down:
 
 vmlinux.h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+
+demo:
+	sudo ./go-auto-instrument-ebpf ./examples/demo/demo main.main
