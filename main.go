@@ -121,8 +121,8 @@ func main() {
 			Variable:   objs.NetHttpRequestProtoMinorOffset,
 		},
 		{
-			StructName: "net/http.Response",
-			FieldName:  "StatusCode",
+			StructName: "net/http.response",
+			FieldName:  "status",
 			Variable:   objs.NetHttpResponseStatusCodeOffset,
 		},
 	}
