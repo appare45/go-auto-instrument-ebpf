@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +34,7 @@
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         h2 {
@@ -168,6 +169,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Item Manager</h1>
@@ -210,7 +212,7 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8080';
+        const API_BASE = window.location.origin;
 
         async function checkHealth() {
             const statusDiv = document.getElementById('healthStatus');
@@ -317,10 +319,11 @@
             }
         }
 
-        window.onload = function() {
+        window.onload = function () {
             checkHealth();
             loadAllItems();
         };
     </script>
 </body>
+
 </html>
