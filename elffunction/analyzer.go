@@ -1,6 +1,7 @@
 package elf
 
 import (
+	"debug/dwarf"
 	"debug/elf"
 	"errors"
 	"io"
@@ -23,6 +24,7 @@ type ElfFunctionAnalyzer struct {
 	// 関数名と関数情報のマップ
 	FuncMap     map[string]FuncInfo
 	TextSection *elf.Section
+	Dwarf       *dwarf.Data
 }
 
 // ELFファイルから初期化
@@ -68,10 +70,58 @@ func NewAnalyzer(elfFile *elf.File) (*ElfFunctionAnalyzer, error) {
 		}
 	}
 
+	dwarf, err := elfFile.DWARF()
+	if err != nil {
+		return nil, err
+	}
+
 	return &ElfFunctionAnalyzer{
 		FuncMap:     funcMap,
 		TextSection: elfFile.Section(".text"),
+		Dwarf:       dwarf,
 	}, nil
+}
+
+func (e ElfFunctionAnalyzer) dwarfTypeByName(name string) (dwarf.Type, error) {
+	for {
+		rdr := e.Dwarf.Reader()
+		for {
+			entry, err := rdr.Next()
+			if err != nil {
+				return nil, err
+			}
+			if entry == nil {
+				break
+			}
+			if entry.Tag == dwarf.TagTypedef {
+				nameAttr := entry.AttrField(dwarf.AttrName)
+				if nameAttr != nil && nameAttr.Val == name {
+					typeOffset := entry.Val(dwarf.AttrType).(dwarf.Offset)
+					t, err := e.Dwarf.Type(typeOffset)
+					if err != nil {
+						return nil, err
+					}
+					return t, nil
+				}
+			}
+		}
+	}
+}
+
+func (e ElfFunctionAnalyzer) StructFieldOffset(name string, fieldName string) (int64, error) {
+	t, err := e.dwarfTypeByName(name)
+	if err != nil {
+		return 0, err
+	}
+	if structType, ok := t.(*dwarf.StructType); ok {
+		for _, field := range structType.Field {
+			if field.Name == fieldName {
+				return field.ByteOffset, nil
+			}
+		}
+		return 0, errors.New("field not found: " + fieldName)
+	}
+	return 0, errors.New("type is not a struct: " + name)
 }
 
 // 関数名からFileOffsetとRET命令のFileOffsetリストを取得
@@ -102,5 +152,6 @@ func (e *ElfFunctionAnalyzer) Get(funcName string) (uint64, []uint64, error) {
 			retOffsets = append(retOffsets, info.Offset+uint64(i))
 		}
 	}
+
 	return info.Offset, retOffsets, nil
 }

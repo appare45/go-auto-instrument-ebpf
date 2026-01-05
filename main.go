@@ -51,6 +51,7 @@ func main() {
 
 	funcAnalyzer, err := elffunction.NewAnalyzer(elffile)
 	symbolOffset, symbolRetOffsets, err := funcAnalyzer.Get(symbol)
+
 	if err != nil {
 		log.Fatalf("finding symbol %s: %s", symbol, err)
 	}
@@ -65,32 +66,60 @@ func main() {
 	}
 	defer objs.Close()
 
-	if err = objs.NetHttpRequestURL_offset.Set(uint32(0x10)); err != nil {
-		log.Fatalf("setting url offset: %s", err)
+	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "URL"); err == nil {
+		if err = objs.NetHttpRequestURL_offset.Set(uint32(offset)); err != nil {
+			log.Fatalf("setting url offset: %s", err)
+		}
+	} else {
+		log.Fatalf("finding offset of net/http.Request.URL: %s", err)
 	}
 
-	if err = objs.NetUrlURL_PathOffset.Set(uint32(0x38)); err != nil {
-		log.Fatalf("setting path offset: %s", err)
+	if offset, err := funcAnalyzer.StructFieldOffset("net/url.URL", "Path"); err == nil {
+		if err = objs.NetUrlURL_PathOffset.Set(uint32(offset)); err != nil {
+			log.Fatalf("setting path offset: %s", err)
+		}
+	} else {
+		log.Fatalf("finding offset of net/url.URL.Path: %s", err)
 	}
 
-	if err = objs.NetHttpRequestMethodOffset.Set(uint32(0x0)); err != nil {
-		log.Fatalf("setting method offset: %s", err)
+	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "Method"); err == nil {
+		if err = objs.NetHttpRequestMethodOffset.Set(uint32(offset)); err != nil {
+			log.Fatalf("setting method offset: %s", err)
+		}
+	} else {
+		log.Fatalf("finding offset of net/http.Request.Method: %s", err)
 	}
 
-	if err = objs.NetHttpRequestHostOffset.Set(uint32(0x80)); err != nil {
-		log.Fatalf("setting host offset: %s", err)
+	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "Host"); err == nil {
+		if err = objs.NetHttpRequestHostOffset.Set(uint32(offset)); err != nil {
+			log.Fatalf("setting host offset: %s", err)
+		}
+	} else {
+		log.Fatalf("finding offset of net/http.Request.Host: %s", err)
 	}
 
-	if err = objs.NetHttpRequestProtoOffset.Set(uint32(0x30)); err != nil {
-		log.Fatalf("setting proto minor offset: %s", err)
+	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "ProtoMajor"); err == nil {
+		if err = objs.NetHttpRequestProtoOffset.Set(uint32(offset)); err != nil {
+			log.Fatalf("setting proto major offset: %s", err)
+		}
+	} else {
+		log.Fatalf("finding offset of net/http.Request.ProtoMajor: %s", err)
 	}
 
-	if err = objs.NetHttpRequestProtoMinorOffset.Set(uint32(0x30)); err != nil {
-		log.Fatalf("setting proto minor offset: %s", err)
+	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "ProtoMinor"); err == nil {
+		if err = objs.NetHttpRequestProtoMinorOffset.Set(uint32(offset)); err != nil {
+			log.Fatalf("setting proto minor offset: %s", err)
+		}
+	} else {
+		log.Fatalf("finding offset of net/http.Request.ProtoMinor: %s", err)
 	}
 
-	if err = objs.NetHttpResponseStatusCodeOffset.Set(uint32(0x120)); err != nil {
-		log.Fatalf("setting status code offset: %s", err)
+	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Response", "StatusCode"); err == nil {
+		if err = objs.NetHttpResponseStatusCodeOffset.Set(uint32(offset)); err != nil {
+			log.Fatalf("setting status code offset: %s", err)
+		}
+	} else {
+		log.Fatalf("finding offset of net/http.Response.StatusCode: %s", err)
 	}
 
 	ex, err := link.OpenExecutable(binPath)
