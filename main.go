@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	elffunction "github.com/appare45/go-auto-instrument-ebpf/elffunction"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
@@ -19,6 +20,29 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.opentelemetry.io/otel/trace"
+)
+
+type structFieldOffsetVariable struct {
+	StructName string
+	FieldName  string
+	Variable   *ebpf.Variable
+}
+
+func (s *structFieldOffsetVariable) getOffset(analyzer *elffunction.ElfFunctionAnalyzer) (int64, error) {
+	return analyzer.StructFieldOffset(s.StructName, s.FieldName)
+}
+
+func (s *structFieldOffsetVariable) SetVariable(analyzer *elffunction.ElfFunctionAnalyzer) error {
+	offset, err := s.getOffset(analyzer)
+	if err != nil {
+		return err
+	}
+	log.Printf("Setting offset for %s.%s: %d\n", s.StructName, s.FieldName, offset)
+	return s.Variable.Set(uint32(offset))
+}
+
+var (
+	objs = tracerObjects{}
 )
 
 const (
@@ -60,66 +84,53 @@ func main() {
 		log.Fatal("Removing memlock:", err)
 	}
 
-	objs := tracerObjects{}
 	if err := loadTracerObjects(&objs, nil); err != nil {
 		log.Fatalf("loading objects: %s", err)
 	}
 	defer objs.Close()
 
-	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "URL"); err == nil {
-		if err = objs.NetHttpRequestURL_offset.Set(uint32(offset)); err != nil {
-			log.Fatalf("setting url offset: %s", err)
-		}
-	} else {
-		log.Fatalf("finding offset of net/http.Request.URL: %s", err)
+	structFieldOffsetVariables := []structFieldOffsetVariable{
+		{
+			StructName: "net/http.Request",
+			FieldName:  "URL",
+			Variable:   objs.NetHttpRequestURL_offset,
+		},
+		{
+			StructName: "net/url.URL",
+			FieldName:  "Path",
+			Variable:   objs.NetUrlURL_PathOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "Method",
+			Variable:   objs.NetHttpRequestMethodOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "Host",
+			Variable:   objs.NetHttpRequestHostOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "ProtoMajor",
+			Variable:   objs.NetHttpRequestProtoOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "ProtoMinor",
+			Variable:   objs.NetHttpRequestProtoMinorOffset,
+		},
+		{
+			StructName: "net/http.Response",
+			FieldName:  "StatusCode",
+			Variable:   objs.NetHttpResponseStatusCodeOffset,
+		},
 	}
 
-	if offset, err := funcAnalyzer.StructFieldOffset("net/url.URL", "Path"); err == nil {
-		if err = objs.NetUrlURL_PathOffset.Set(uint32(offset)); err != nil {
-			log.Fatalf("setting path offset: %s", err)
+	for _, v := range structFieldOffsetVariables {
+		if err := v.SetVariable(funcAnalyzer); err != nil {
+			log.Fatalf("setting offset for %s.%s: %s", v.StructName, v.FieldName, err)
 		}
-	} else {
-		log.Fatalf("finding offset of net/url.URL.Path: %s", err)
-	}
-
-	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "Method"); err == nil {
-		if err = objs.NetHttpRequestMethodOffset.Set(uint32(offset)); err != nil {
-			log.Fatalf("setting method offset: %s", err)
-		}
-	} else {
-		log.Fatalf("finding offset of net/http.Request.Method: %s", err)
-	}
-
-	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "Host"); err == nil {
-		if err = objs.NetHttpRequestHostOffset.Set(uint32(offset)); err != nil {
-			log.Fatalf("setting host offset: %s", err)
-		}
-	} else {
-		log.Fatalf("finding offset of net/http.Request.Host: %s", err)
-	}
-
-	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "ProtoMajor"); err == nil {
-		if err = objs.NetHttpRequestProtoOffset.Set(uint32(offset)); err != nil {
-			log.Fatalf("setting proto major offset: %s", err)
-		}
-	} else {
-		log.Fatalf("finding offset of net/http.Request.ProtoMajor: %s", err)
-	}
-
-	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Request", "ProtoMinor"); err == nil {
-		if err = objs.NetHttpRequestProtoMinorOffset.Set(uint32(offset)); err != nil {
-			log.Fatalf("setting proto minor offset: %s", err)
-		}
-	} else {
-		log.Fatalf("finding offset of net/http.Request.ProtoMinor: %s", err)
-	}
-
-	if offset, err := funcAnalyzer.StructFieldOffset("net/http.Response", "StatusCode"); err == nil {
-		if err = objs.NetHttpResponseStatusCodeOffset.Set(uint32(offset)); err != nil {
-			log.Fatalf("setting status code offset: %s", err)
-		}
-	} else {
-		log.Fatalf("finding offset of net/http.Response.StatusCode: %s", err)
 	}
 
 	ex, err := link.OpenExecutable(binPath)
