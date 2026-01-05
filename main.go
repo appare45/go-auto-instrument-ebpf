@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	elffunction "github.com/appare45/go-auto-instrument-ebpf/elffunction"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
@@ -19,6 +20,29 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.opentelemetry.io/otel/trace"
+)
+
+type structFieldOffsetVariable struct {
+	StructName string
+	FieldName  string
+	Variable   *ebpf.Variable
+}
+
+func (s *structFieldOffsetVariable) getOffset(analyzer *elffunction.ElfFunctionAnalyzer) (int64, error) {
+	return analyzer.StructFieldOffset(s.StructName, s.FieldName)
+}
+
+func (s *structFieldOffsetVariable) SetVariable(analyzer *elffunction.ElfFunctionAnalyzer) error {
+	offset, err := s.getOffset(analyzer)
+	if err != nil {
+		return err
+	}
+	log.Printf("Setting offset for %s.%s: %d\n", s.StructName, s.FieldName, offset)
+	return s.Variable.Set(uint32(offset))
+}
+
+var (
+	objs = tracerObjects{}
 )
 
 const (
@@ -51,6 +75,7 @@ func main() {
 
 	funcAnalyzer, err := elffunction.NewAnalyzer(elffile)
 	symbolOffset, symbolRetOffsets, err := funcAnalyzer.Get(symbol)
+
 	if err != nil {
 		log.Fatalf("finding symbol %s: %s", symbol, err)
 	}
@@ -59,22 +84,53 @@ func main() {
 		log.Fatal("Removing memlock:", err)
 	}
 
-	objs := tracerObjects{}
 	if err := loadTracerObjects(&objs, nil); err != nil {
 		log.Fatalf("loading objects: %s", err)
 	}
 	defer objs.Close()
 
-	if err = objs.NetHttpRequestHostOffset.Set(uint32(0x10)); err != nil {
-		log.Fatalf("setting host offset: %s", err)
+	structFieldOffsetVariables := []structFieldOffsetVariable{
+		{
+			StructName: "net/http.Request",
+			FieldName:  "URL",
+			Variable:   objs.NetHttpRequestURL_offset,
+		},
+		{
+			StructName: "net/url.URL",
+			FieldName:  "Path",
+			Variable:   objs.NetUrlURL_PathOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "Method",
+			Variable:   objs.NetHttpRequestMethodOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "Host",
+			Variable:   objs.NetHttpRequestHostOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "ProtoMajor",
+			Variable:   objs.NetHttpRequestProtoOffset,
+		},
+		{
+			StructName: "net/http.Request",
+			FieldName:  "ProtoMinor",
+			Variable:   objs.NetHttpRequestProtoMinorOffset,
+		},
+		{
+			StructName: "net/http.response",
+			FieldName:  "status",
+			Variable:   objs.NetHttpResponseStatusCodeOffset,
+		},
 	}
 
-	if err = objs.NetHttpRequestMethodOffset.Set(uint32(0x0)); err != nil {
-		log.Fatalf("setting method offset: %s", err)
-	
-
-	if err = objs.NetHttpRequestPathOffset.Set(uint32(0x18)); err != nil {
-		log.Fatalf("setting path offset: %s", err)
+	for _, v := range structFieldOffsetVariables {
+		if err := v.SetVariable(funcAnalyzer); err != nil {
+			log.Fatalf("setting offset for %s.%s: %s", v.StructName, v.FieldName, err)
+		}
 	}
 
 	ex, err := link.OpenExecutable(binPath)
@@ -138,6 +194,7 @@ func main() {
 				log.Printf("parsing perf event: %s", err)
 				continue
 			}
+			fmt.Printf("%+v\n", event)
 			starttime, err := GetRealTimestamp(int64(event.StartTime))
 			if err != nil {
 				log.Printf("getting real timestamp: %s", err)
@@ -182,7 +239,6 @@ func main() {
 					semconv.HTTPRoute(pathStr),
 					semconv.HostName(hostStr),
 					semconv.HTTPResponseStatusCode(int(event.StatusCode)),
-					// attribute.KeyValue{Key: semconv.HTTPRequestMethodKey, Value: methodStr},
 					attribute.String(string(semconv.HTTPRequestMethodKey), methodStr),
 				),
 			)

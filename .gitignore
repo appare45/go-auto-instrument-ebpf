@@ -2,6 +2,7 @@
 !*.*
 !Makefile
 !*/
+!Dockerfile
 
 vmlinux.h
 *.o
